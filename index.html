@@ -1,0 +1,1498 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Advanced Daily Sales Report v2 — KWD</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
+<style>
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --blue:    #1d6fcf;
+  --blue-lt: #dbeafe;
+  --green:   #16a34a;
+  --green-lt:#dcfce7;
+  --red:     #dc2626;
+  --red-lt:  #fee2e2;
+  --amber:   #d97706;
+  --amber-lt:#fef3c7;
+  --purple:  #7c3aed;
+  --purple-lt:#ede9fe;
+  --teal:    #0d9488;
+  --teal-lt: #ccfbf1;
+  --pink:    #db2777;
+  --pink-lt: #fce7f3;
+  --bg:      #f8fafc;
+  --card:    #ffffff;
+  --border:  #e2e8f0;
+  --text:    #1e293b;
+  --muted:   #64748b;
+  --light:   #f1f5f9;
+}
+
+body {
+  font-family: system-ui, -apple-system, sans-serif;
+  background: var(--bg);
+  color: var(--text);
+  min-height: 100vh;
+  padding: 16px;
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+/* ── Control Bar ── */
+.ctrl-bar {
+  display: flex; align-items: center; gap: 10px; flex-wrap: wrap;
+  padding: 12px 16px; margin-bottom: 14px;
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.load-btn {
+  padding: 8px 20px; border: none; border-radius: 7px; cursor: pointer;
+  font-size: 13px; font-weight: 700;
+  background: var(--blue); color: #fff; white-space: nowrap; transition: opacity .15s;
+}
+.load-btn:disabled { opacity: .45; cursor: not-allowed; }
+.progress-wrap { flex: 1; min-width: 120px; height: 6px; background: var(--border); border-radius: 3px; overflow: hidden; }
+.progress-bar  { height: 100%; width: 0%; background: var(--blue); border-radius: 3px; transition: width .25s; }
+.status-text   { font-size: 12px; color: var(--muted); white-space: nowrap; }
+.error-box { color: var(--red); background: var(--red-lt); border: 1px solid #fca5a5;
+  border-radius: 8px; padding: 12px 16px; font-size: 13px; margin-bottom: 14px; }
+
+/* ── Filter Panel ── */
+.filter-panel {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 14px 16px; margin-bottom: 14px;
+  display: flex; gap: 14px; flex-wrap: wrap; align-items: flex-end;
+  box-shadow: 0 1px 3px rgba(0,0,0,.06);
+}
+.filter-group { display: flex; flex-direction: column; gap: 4px; }
+.filter-group label { font-size: 11px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; }
+.filter-group select, .filter-group input {
+  padding: 6px 10px; border: 1px solid var(--border); border-radius: 6px;
+  font-size: 13px; color: var(--text); background: #fff; outline: none;
+}
+.filter-group select:focus, .filter-group input:focus { border-color: var(--blue); box-shadow: 0 0 0 2px rgba(29,111,207,.15); }
+.months-grid { display: flex; flex-wrap: wrap; gap: 5px; }
+.month-chip {
+  padding: 4px 10px; border: 1.5px solid var(--border); border-radius: 20px;
+  font-size: 12px; font-weight: 500; cursor: pointer; transition: all .15s;
+  background: #fff; color: var(--muted); user-select: none;
+}
+.month-chip.active { border-color: var(--blue); background: var(--blue); color: #fff; }
+.apply-btn {
+  padding: 7px 18px; background: var(--blue); color: #fff;
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; transition: opacity .15s; align-self: flex-end;
+}
+.apply-btn:hover { opacity: .85; }
+.clear-btn {
+  padding: 7px 14px; background: var(--light); color: var(--muted);
+  border: none; border-radius: 6px; font-size: 13px; font-weight: 600;
+  cursor: pointer; align-self: flex-end;
+}
+
+/* ── Summary Cards ── */
+.summary-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(155px, 1fr));
+  gap: 10px; margin-bottom: 16px;
+}
+.summary-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 10px;
+  padding: 13px 15px; box-shadow: 0 1px 3px rgba(0,0,0,.05);
+}
+.summary-card .sc-label { font-size: 10px; font-weight: 600; color: var(--muted); text-transform: uppercase; letter-spacing: .05em; margin-bottom: 3px; }
+.summary-card .sc-value { font-size: 18px; font-weight: 700; color: var(--text); line-height: 1.2; }
+.summary-card .sc-sub   { font-size: 11px; color: var(--muted); margin-top: 2px; }
+.summary-card.blue   { border-top: 3px solid var(--blue); }
+.summary-card.green  { border-top: 3px solid var(--green); }
+.summary-card.amber  { border-top: 3px solid var(--amber); }
+.summary-card.red    { border-top: 3px solid var(--red); }
+.summary-card.purple { border-top: 3px solid var(--purple); }
+.summary-card.teal   { border-top: 3px solid var(--teal); }
+.summary-card.pink   { border-top: 3px solid var(--pink); }
+
+/* ── Section Headers ── */
+.section-header {
+  font-size: 15px; font-weight: 700; color: var(--text);
+  padding: 10px 0 8px; border-bottom: 2px solid var(--border);
+  margin-bottom: 12px; display: flex; align-items: center; gap: 8px;
+}
+.badge {
+  font-size: 10px; padding: 2px 8px; border-radius: 20px; font-weight: 600;
+}
+
+/* ── Month Block ── */
+.month-block {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  margin-bottom: 18px; overflow: hidden; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+.month-header {
+  padding: 13px 17px; display: flex; align-items: center; justify-content: space-between;
+  flex-wrap: wrap; gap: 8px;
+}
+.month-title { font-size: 16px; font-weight: 700; }
+.month-meta  { display: flex; gap: 14px; flex-wrap: wrap; }
+.meta-item   { font-size: 11px; color: #334155; }
+.meta-item span { font-weight: 700; }
+.month-body  { padding: 14px 17px; }
+
+.mh-jan  { background: linear-gradient(135deg,#eff6ff,#dbeafe); border-bottom: 2px solid #93c5fd; }
+.mh-feb  { background: linear-gradient(135deg,#fdf4ff,#fae8ff); border-bottom: 2px solid #d8b4fe; }
+.mh-mar  { background: linear-gradient(135deg,#f0fdf4,#dcfce7); border-bottom: 2px solid #86efac; }
+.mh-apr  { background: linear-gradient(135deg,#fff7ed,#ffedd5); border-bottom: 2px solid #fdba74; }
+.mh-may  { background: linear-gradient(135deg,#fefce8,#fef3c7); border-bottom: 2px solid #fde047; }
+.mh-jun  { background: linear-gradient(135deg,#f0fdfa,#ccfbf1); border-bottom: 2px solid #5eead4; }
+.mh-jul  { background: linear-gradient(135deg,#eff6ff,#bfdbfe); border-bottom: 2px solid #60a5fa; }
+.mh-aug  { background: linear-gradient(135deg,#fff1f2,#ffe4e6); border-bottom: 2px solid #fda4af; }
+.mh-sep  { background: linear-gradient(135deg,#f5f3ff,#ede9fe); border-bottom: 2px solid #c4b5fd; }
+.mh-oct  { background: linear-gradient(135deg,#fff7ed,#fed7aa); border-bottom: 2px solid #fb923c; }
+.mh-nov  { background: linear-gradient(135deg,#ecfdf5,#a7f3d0); border-bottom: 2px solid #34d399; }
+.mh-dec  { background: linear-gradient(135deg,#fef2f2,#fecaca); border-bottom: 2px solid #f87171; }
+
+/* ── Tables ── */
+.data-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.data-table th {
+  background: var(--light); padding: 7px 9px;
+  text-align: left; font-weight: 600; font-size: 10.5px;
+  color: var(--muted); text-transform: uppercase; letter-spacing: .04em;
+  border-bottom: 1px solid var(--border); position: sticky; top: 0; z-index: 1;
+}
+.data-table td { padding: 6px 9px; border-bottom: 1px solid #f1f5f9; vertical-align: middle; }
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: #f8fafc; }
+.data-table tr.total-row td { font-weight: 700; background: var(--light); border-top: 2px solid var(--border); }
+.data-table tr.best-row td  { background: #f0fdf4; }
+.data-table tr.worst-row td { background: #fff1f2; }
+.ta-r { text-align: right; }
+.ta-c { text-align: center; }
+
+/* Pct bar */
+.pct-bar-wrap { display: flex; align-items: center; gap: 5px; }
+.pct-bar { height: 5px; border-radius: 3px; min-width: 2px; }
+.pct-txt { font-size: 10.5px; color: var(--muted); white-space: nowrap; }
+
+/* ── Tab bar ── */
+.tab-bar { display: flex; gap: 5px; margin-bottom: 10px; flex-wrap: wrap; }
+.tab-btn {
+  padding: 4px 13px; border: 1.5px solid var(--border); border-radius: 6px;
+  font-size: 11.5px; font-weight: 600; cursor: pointer;
+  background: #fff; color: var(--muted); transition: all .15s;
+}
+.tab-btn.active { background: var(--blue); border-color: var(--blue); color: #fff; }
+
+/* ── Chart wrappers ── */
+.chart-wrap { position: relative; margin-top: 12px; }
+.chart-title {
+  font-size: 11.5px; font-weight: 600; color: var(--muted);
+  margin-bottom: 5px; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 6px;
+}
+.chart-total-badge {
+  font-size: 11px; font-weight: 700; padding: 2px 9px;
+  background: var(--blue); color: #fff; border-radius: 20px;
+}
+.canvas-sm  { position: relative; height: 210px; }
+.canvas-md  { position: relative; height: 270px; }
+.canvas-lg  { position: relative; height: 310px; }
+.table-scroll { overflow-x: auto; max-height: 340px; overflow-y: auto; }
+
+/* ── Division tabs ── */
+.div-tab-bar { display: flex; gap: 5px; flex-wrap: wrap; margin-bottom: 10px; border-bottom: 2px solid var(--border); padding-bottom: 8px; }
+.div-tab-btn {
+  padding: 4px 12px; border: 1.5px solid transparent; border-radius: 6px 6px 0 0;
+  font-size: 11.5px; font-weight: 600; cursor: pointer; background: var(--light); color: var(--muted);
+  transition: all .15s;
+}
+.div-tab-btn.active { background: var(--card); border-color: var(--border); border-bottom-color: var(--card); color: var(--text); margin-bottom: -2px; }
+.div-panel { display: none; }
+.div-panel.active { display: block; }
+
+/* ── Division summary row ── */
+.div-summary-strip {
+  display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 10px;
+}
+.div-kpi {
+  flex: 1; min-width: 110px;
+  background: var(--light); border-radius: 7px; padding: 8px 10px;
+  font-size: 11px;
+}
+.div-kpi .dk-label { color: var(--muted); font-size: 10px; font-weight: 600; text-transform: uppercase; }
+.div-kpi .dk-val   { font-size: 14px; font-weight: 700; margin-top: 1px; }
+
+/* ── Comparison section ── */
+.comparison-block {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 16px; margin-bottom: 18px; box-shadow: 0 1px 4px rgba(0,0,0,.06);
+}
+
+/* ── Day-compare table ── */
+.day-compare-wrap { overflow-x: auto; }
+.day-compare-table { width: 100%; border-collapse: collapse; font-size: 11.5px; min-width: 480px; }
+.day-compare-table th, .day-compare-table td {
+  padding: 5px 9px; border: 1px solid var(--border); text-align: right;
+}
+.day-compare-table th { background: var(--light); font-weight: 600; font-size: 10.5px; color: var(--muted); }
+.day-compare-table td:first-child { text-align: center; font-weight: 600; background: var(--light); }
+.up   { color: var(--green); font-weight: 600; }
+.down { color: var(--red);   font-weight: 600; }
+.neutral { color: var(--muted); }
+
+/* ── Perf summary cards ── */
+.perf-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 9px; margin-bottom: 14px;
+}
+.perf-card { border: 1px solid var(--border); border-radius: 8px; padding: 11px; background: #fff; }
+.perf-card h4 { font-size: 11.5px; font-weight: 700; margin-bottom: 7px; }
+.perf-row { display: flex; justify-content: space-between; font-size: 11px; padding: 3px 0; border-bottom: 1px solid #f1f5f9; }
+.perf-row:last-child { border-bottom: none; }
+.perf-row .label { color: var(--muted); }
+.perf-row .value { font-weight: 600; }
+
+/* ── Insights block ── */
+.insights-block {
+  background: linear-gradient(135deg,#f0f9ff,#e0f2fe);
+  border: 1px solid #7dd3fc; border-radius: 12px; padding: 16px; margin-bottom: 16px;
+}
+.insights-block h3 { font-size: 13px; font-weight: 700; color: #0369a1; margin-bottom: 10px; }
+.insight-item {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 8px 11px; margin-bottom: 7px;
+  background: #fff; border-radius: 7px; border: 1px solid #bae6fd;
+}
+.insight-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.insight-text { font-size: 12.5px; line-height: 1.55; color: var(--text); }
+.insight-text strong { color: #0369a1; }
+
+/* ── Strategic recommendations ── */
+.reco-block {
+  border-radius: 12px; padding: 16px; margin-bottom: 16px;
+  border: 1px solid #fbbf24; background: linear-gradient(135deg,#fffbeb,#fef3c7);
+}
+.reco-block h3 { font-size: 13px; font-weight: 700; color: #92400e; margin-bottom: 10px; }
+.reco-item {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 8px 11px; margin-bottom: 7px;
+  background: #fff; border-radius: 7px; border: 1px solid #fde68a;
+}
+.reco-icon { font-size: 15px; flex-shrink: 0; margin-top: 1px; }
+.reco-text { font-size: 12.5px; line-height: 1.55; color: var(--text); }
+.reco-text strong { color: #92400e; }
+
+/* ── Performance summary narrative ── */
+.perf-narrative {
+  background: linear-gradient(135deg,#f5f3ff,#ede9fe);
+  border: 1px solid #c4b5fd; border-radius: 12px; padding: 16px; margin-bottom: 16px;
+}
+.perf-narrative h3 { font-size: 13px; font-weight: 700; color: #5b21b6; margin-bottom: 10px; }
+.narrative-item {
+  display: flex; gap: 9px; align-items: flex-start;
+  padding: 7px 10px; margin-bottom: 6px;
+  background: #fff; border-radius: 7px; border: 1px solid #ddd6fe;
+}
+.narrative-item .n-icon { font-size: 14px; flex-shrink: 0; margin-top: 1px; }
+.narrative-item .n-text { font-size: 12.5px; line-height: 1.55; }
+.narrative-item .n-text strong { color: #5b21b6; }
+
+/* ── Division comparison ── */
+.div-compare-grid {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(180px, 1fr)); gap: 9px; margin-bottom: 12px;
+}
+.div-compare-card { border: 1px solid var(--border); border-radius: 8px; padding: 11px; background: #fff; }
+.div-compare-card h4 { font-size: 11px; font-weight: 700; margin-bottom: 7px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+/* ── Collapsible sections ── */
+.collapsible-header {
+  display: flex; justify-content: space-between; align-items: center;
+  cursor: pointer; user-select: none; padding: 8px 0; margin-bottom: 6px;
+}
+.collapsible-header:hover { opacity: .8; }
+.collapsible-arrow { transition: transform .2s; font-size: 12px; color: var(--muted); }
+.collapsible-arrow.open { transform: rotate(90deg); }
+.collapsible-body { display: none; }
+.collapsible-body.open { display: block; }
+
+.empty-state { text-align: center; padding: 40px 20px; color: var(--muted); }
+</style>
+</head>
+<body>
+
+<div class="ctrl-bar">
+  <button class="load-btn" id="load-btn" onclick="loadAllRecords()">⬇ Load All Records</button>
+  <div class="progress-wrap"><div class="progress-bar" id="prog-bar"></div></div>
+  <span class="status-text" id="status-text">Press Load to fetch data from Manager</span>
+</div>
+
+<div id="app"></div>
+
+<script>
+/* ══════════════════════════════════════════════
+   postMessage helper — DO NOT MODIFY
+══════════════════════════════════════════════ */
+function postMessageWithResponse(message) {
+  return new Promise((resolve, reject) => {
+    const requestId = crypto.randomUUID();
+    const timer = setTimeout(() => {
+      window.removeEventListener('message', handler);
+      reject(new Error('Timeout — is this running inside Manager?'));
+    }, 15000);
+    function handler(event) {
+      if (event.data?.type?.endsWith('-response') && event.data?.requestId === requestId) {
+        clearTimeout(timer);
+        window.removeEventListener('message', handler);
+        resolve(event.data.body);
+      }
+    }
+    window.addEventListener('message', handler);
+    window.parent.postMessage({ ...message, requestId }, '*');
+  });
+}
+
+/* ══════════════════════════════════════════════
+   Paginated fetch — DO NOT SIMPLIFY
+══════════════════════════════════════════════ */
+async function getBatchSalesInvoice(onProgress) {
+  const allItems = [];
+  let nextToken = null, pageNum = 0, apiTotal = null;
+  do {
+    const path = nextToken
+      ? '/api4/batch-sales-invoice?PageSize=99999&next_page_token=' + encodeURIComponent(nextToken)
+      : '/api4/batch-sales-invoice?PageSize=99999';
+    const data = await postMessageWithResponse({ type: 'api-request', method: 'GET', path });
+    const page = Array.isArray(data) ? data : (data.items || []);
+    allItems.push(...page);
+    nextToken = data.next_page_token || data.nextPageToken || data._links?.next?.href || null;
+    if (apiTotal === null) apiTotal = data.totalCount ?? data.total ?? data.count ?? data._metadata?.totalCount ?? null;
+    pageNum++;
+    if (onProgress) onProgress(allItems.length, apiTotal, pageNum);
+    if (pageNum >= 1000) break;
+  } while (nextToken);
+  return allItems;
+}
+
+/* ══════════════════════════════════════════════
+   Load button handler
+══════════════════════════════════════════════ */
+async function loadAllRecords() {
+  const btn = document.getElementById('load-btn');
+  const bar = document.getElementById('prog-bar');
+  const status = document.getElementById('status-text');
+  const app = document.getElementById('app');
+  btn.disabled = true; btn.textContent = 'Loading…';
+  bar.style.width = '0%'; app.innerHTML = '';
+  try {
+    const items = await getBatchSalesInvoice((loaded, total, page) => {
+      status.textContent = total
+        ? `Page ${page} · ${loaded.toLocaleString()} / ${total.toLocaleString()} records`
+        : `Page ${page} · ${loaded.toLocaleString()} records loaded…`;
+      if (total) bar.style.width = Math.min(95, Math.round(loaded / total * 100)) + '%';
+    });
+    bar.style.width = '100%';
+    status.textContent = `✓ ${items.length.toLocaleString()} records loaded`;
+    btn.textContent = '↺ Reload'; btn.disabled = false;
+    render(items);
+  } catch (err) {
+    status.textContent = '⚠ ' + err.message;
+    btn.textContent = '↺ Retry'; btn.disabled = false;
+    app.innerHTML = `<div class="error-box">⚠ ${err.message}<br><small>Make sure this extension is running inside Manager.io</small></div>`;
+  }
+}
+
+/* ══════════════════════════════════════════════
+   CONSTANTS & GLOBALS
+══════════════════════════════════════════════ */
+const MONTHS = ['January','February','March','April','May','June','July','August','September','October','November','December'];
+const MONTH_ABBR = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const MONTH_CLASSES = ['mh-jan','mh-feb','mh-mar','mh-apr','mh-may','mh-jun','mh-jul','mh-aug','mh-sep','mh-oct','mh-nov','mh-dec'];
+
+// 12 distinct colors — one per month, also used for divisions
+const PALETTE = [
+  '#1d6fcf','#7c3aed','#16a34a','#d97706','#dc2626','#0d9488',
+  '#db2777','#ea580c','#0891b2','#65a30d','#9333ea','#b45309'
+];
+// Additional colors for divisions (can be more than 12)
+const DIV_PALETTE = [
+  '#1d6fcf','#16a34a','#d97706','#dc2626','#7c3aed','#0d9488',
+  '#db2777','#ea580c','#0891b2','#9333ea','#65a30d','#b45309',
+  '#0e7490','#be185d','#15803d','#c2410c','#7e22ce','#0f766e'
+];
+
+let ALL_ITEMS = [];
+let CHART_INSTANCES = {};
+let DIV_NAME_MAP = {}; // divisionUUID → display name (resolved from data)
+let DIV_COLOR_MAP = {};
+
+/* ══════════════════════════════════════════════
+   FORMAT HELPERS
+══════════════════════════════════════════════ */
+const fmtKWD = v => 'KWD ' + Number(v||0).toLocaleString('en-US', {minimumFractionDigits:3, maximumFractionDigits:3});
+const fmtShort = v => { v = Number(v||0); if (Math.abs(v)>=1000) return (v/1000).toFixed(1)+'K'; return v.toFixed(3); };
+const fmtNum = v => Number(v||0).toLocaleString();
+
+function parseDate(s) {
+  if (!s) return null;
+  const d = new Date(s);
+  return isNaN(d) ? null : { year: d.getFullYear(), month: d.getMonth(), day: d.getDate() };
+}
+
+/* Compute total for one invoice from its lines */
+function invTotal(inv) {
+  const lines = inv.item?.lines || [];
+  if (!lines.length) return 0;
+  let t = 0;
+  for (const ln of lines) {
+    t += (ln.qty||1) * (ln.salesUnitPrice||0) - (ln.discountAmount||0);
+  }
+  return Math.max(0, t);
+}
+
+/* Extract division UUID from first line of an invoice */
+function invDivision(inv) {
+  const lines = inv.item?.lines || [];
+  for (const ln of lines) {
+    if (ln.division) return ln.division;
+  }
+  return '__none__';
+}
+
+function hexToRgba(hex, a) {
+  const r=parseInt(hex.slice(1,3),16), g=parseInt(hex.slice(3,5),16), b=parseInt(hex.slice(5,7),16);
+  return `rgba(${r},${g},${b},${a})`;
+}
+
+/* ══════════════════════════════════════════════
+   DATA PROCESSING
+══════════════════════════════════════════════ */
+
+/*
+  groupData returns:
+  {
+    "2026-03": {
+      year, month,
+      days: { 1: total, 2: total, ... },
+      invoiceCounts: { 1: count, ... },
+      divisions: {
+        "divUUID": { days: {}, invoiceCounts: {} }
+      }
+    }
+  }
+*/
+function groupData(items) {
+  const map = {};
+  const divsSeen = new Set();
+
+  for (const inv of items) {
+    const d = parseDate(inv.item?.issueDate);
+    if (!d) continue;
+    const key = `${d.year}-${String(d.month).padStart(2,'0')}`;
+    const t   = invTotal(inv);
+    const div = invDivision(inv);
+
+    if (!map[key]) map[key] = { year: d.year, month: d.month, days: {}, invoiceCounts: {}, divisions: {} };
+    const mk = map[key];
+
+    // Overall
+    mk.days[d.day]          = (mk.days[d.day] || 0) + t;
+    mk.invoiceCounts[d.day] = (mk.invoiceCounts[d.day] || 0) + 1;
+
+    // Per division
+    if (!mk.divisions[div]) mk.divisions[div] = { days: {}, invoiceCounts: {} };
+    mk.divisions[div].days[d.day]          = (mk.divisions[div].days[d.day] || 0) + t;
+    mk.divisions[div].invoiceCounts[d.day] = (mk.divisions[div].invoiceCounts[d.day] || 0) + 1;
+
+    divsSeen.add(div);
+  }
+
+  // Assign display names & colors to divisions
+  let ci = 0;
+  for (const div of [...divsSeen].sort()) {
+    if (!DIV_NAME_MAP[div]) {
+      DIV_NAME_MAP[div] = div === '__none__' ? 'Unassigned' : `Division ${Object.keys(DIV_NAME_MAP).length + 1}`;
+    }
+    if (!DIV_COLOR_MAP[div]) {
+      DIV_COLOR_MAP[div] = DIV_PALETTE[ci % DIV_PALETTE.length];
+      ci++;
+    }
+  }
+
+  return map;
+}
+
+/* Compute stats from a days object + invoiceCounts object */
+function computeStats(days, invoiceCounts) {
+  const dayNums = Object.keys(days).map(Number).sort((a,b)=>a-b);
+  if (!dayNums.length) return null;
+  const vals      = dayNums.map(d => days[d]);
+  const total     = vals.reduce((a,b)=>a+b,0);
+  const totalInv  = Object.values(invoiceCounts).reduce((a,b)=>a+b,0);
+  const activeDays= dayNums.length;
+  const avgPerDay = activeDays ? total/activeDays : 0;
+  const avgPerInv = totalInv  ? total/totalInv : 0;
+  const bestDay   = dayNums.reduce((b,d)=>days[d]>days[b]?d:b, dayNums[0]);
+  const worstDay  = dayNums.reduce((w,d)=>days[d]<days[w]?d:w, dayNums[0]);
+  const mean      = avgPerDay;
+  const std       = Math.sqrt(vals.reduce((s,v)=>s+(v-mean)**2,0)/vals.length);
+  const cv        = mean ? std/mean : 0;
+  return { dayNums, vals, total, totalInv, activeDays, avgPerDay, avgPerInv, bestDay, worstDay, cv };
+}
+
+/* ══════════════════════════════════════════════
+   FILTER HELPERS
+══════════════════════════════════════════════ */
+function getSelectedMonths() {
+  return [...document.querySelectorAll('.month-chip.active')].map(c=>parseInt(c.dataset.month));
+}
+
+function filterItems(items) {
+  const selYear   = document.getElementById('year-select')?.value || '';
+  const selMonths = getSelectedMonths();
+  const startDate = document.getElementById('start-date')?.value || '';
+  const endDate   = document.getElementById('end-date')?.value   || '';
+  return items.filter(inv => {
+    const d = parseDate(inv.item?.issueDate);
+    if (!d) return false;
+    if (selYear && d.year !== parseInt(selYear)) return false;
+    if (selMonths.length && !selMonths.includes(d.month)) return false;
+    const iso = inv.item?.issueDate?.substring(0,10) || '';
+    if (startDate && iso < startDate) return false;
+    if (endDate   && iso > endDate)   return false;
+    return true;
+  });
+}
+
+function toggleMonth(el) { el.classList.toggle('active'); }
+function clearFilters() {
+  const ys = document.getElementById('year-select');
+  if (ys) ys.selectedIndex = 0;
+  document.querySelectorAll('.month-chip').forEach(c=>c.classList.remove('active'));
+  document.getElementById('start-date').value = '';
+  document.getElementById('end-date').value   = '';
+  renderWithFilters();
+}
+
+/* ══════════════════════════════════════════════
+   RENDER ENTRY
+══════════════════════════════════════════════ */
+function render(items) {
+  ALL_ITEMS = items;
+  if (!items?.length) {
+    document.getElementById('app').innerHTML = '<div class="empty-state">📭 No records found.</div>';
+    return;
+  }
+  renderWithFilters();
+}
+
+function renderWithFilters() {
+  destroyCharts();
+  const app = document.getElementById('app');
+
+  // Available years
+  const years = [...new Set(ALL_ITEMS.map(inv => {
+    const d = parseDate(inv.item?.issueDate);
+    return d?.year;
+  }).filter(Boolean))].sort((a,b)=>a-b);
+
+  const selYear   = document.getElementById('year-select')?.value || String(years[years.length-1] || new Date().getFullYear());
+  const selMonths = getSelectedMonths();
+  const startDate = document.getElementById('start-date')?.value || '';
+  const endDate   = document.getElementById('end-date')?.value   || '';
+
+  const filtered  = filterItems(ALL_ITEMS);
+  const grouped   = groupData(filtered);
+  const monthKeys = Object.keys(grouped).sort();
+
+  let html = buildFilterPanel(years, selYear, selMonths, startDate, endDate);
+
+  if (!monthKeys.length) {
+    html += '<div class="empty-state">📭 No data for selected filters.</div>';
+    app.innerHTML = html;
+    attachFilterListeners();
+    return;
+  }
+
+  // Grand summary
+  html += buildGrandSummary(grouped, monthKeys);
+
+  // Per-month sections
+  html += `<div class="section-header">📅 Monthly Breakdown</div>`;
+  for (const key of monthKeys) {
+    html += buildMonthBlock(grouped[key], key);
+  }
+
+  // Comparison (≥2 months)
+  if (monthKeys.length >= 2) {
+    html += buildComparisonSection(grouped, monthKeys);
+  }
+
+  // Global insights + recommendations
+  html += buildGlobalInsights(grouped, monthKeys);
+  html += buildGlobalRecommendations(grouped, monthKeys);
+
+  app.innerHTML = html;
+  attachFilterListeners();
+  buildAllCharts(grouped, monthKeys);
+}
+
+/* ══════════════════════════════════════════════
+   FILTER PANEL
+══════════════════════════════════════════════ */
+function buildFilterPanel(years, selYear, selMonths, startDate, endDate) {
+  const yearOpts = years.map(y=>`<option value="${y}" ${String(y)===selYear?'selected':''}>${y}</option>`).join('');
+  const chips = MONTHS.map((m,i)=>{
+    const a = selMonths.includes(i) ? 'active' : '';
+    return `<span class="month-chip ${a}" data-month="${i}" onclick="toggleMonth(this)">${MONTH_ABBR[i]}</span>`;
+  }).join('');
+  return `
+  <div class="filter-panel">
+    <div class="filter-group">
+      <label>Year</label>
+      <select id="year-select">${yearOpts}</select>
+    </div>
+    <div class="filter-group">
+      <label>Months (none = all)</label>
+      <div class="months-grid" id="months-grid">${chips}</div>
+    </div>
+    <div class="filter-group">
+      <label>From</label>
+      <input type="date" id="start-date" value="${startDate}">
+    </div>
+    <div class="filter-group">
+      <label>To</label>
+      <input type="date" id="end-date" value="${endDate}">
+    </div>
+    <button class="apply-btn" onclick="renderWithFilters()">Apply</button>
+    <button class="clear-btn" onclick="clearFilters()">Clear</button>
+  </div>`;
+}
+
+function attachFilterListeners() {
+  const ys = document.getElementById('year-select');
+  if (ys) ys.onchange = renderWithFilters;
+}
+
+/* ══════════════════════════════════════════════
+   GRAND SUMMARY CARDS
+══════════════════════════════════════════════ */
+function buildGrandSummary(grouped, monthKeys) {
+  let grandTotal=0, grandInv=0, grandDays=0, bestMonthKey=null, bestMonthTotal=0;
+  for (const key of monthKeys) {
+    const s = computeStats(grouped[key].days, grouped[key].invoiceCounts);
+    if (!s) continue;
+    grandTotal += s.total;
+    grandInv   += s.totalInv;
+    grandDays  += s.activeDays;
+    if (s.total > bestMonthTotal) { bestMonthTotal = s.total; bestMonthKey = key; }
+  }
+  const avgPerMonth = monthKeys.length ? grandTotal/monthKeys.length : 0;
+  const avgPerDay   = grandDays ? grandTotal/grandDays : 0;
+  const avgPerInv   = grandInv  ? grandTotal/grandInv  : 0;
+  const bm = bestMonthKey ? grouped[bestMonthKey] : null;
+
+  return `
+  <div class="summary-grid">
+    <div class="summary-card blue">
+      <div class="sc-label">Grand Total</div>
+      <div class="sc-value">${fmtKWD(grandTotal)}</div>
+      <div class="sc-sub">${monthKeys.length} month(s) selected</div>
+    </div>
+    <div class="summary-card green">
+      <div class="sc-label">Total Invoices</div>
+      <div class="sc-value">${fmtNum(grandInv)}</div>
+      <div class="sc-sub">across all months</div>
+    </div>
+    <div class="summary-card amber">
+      <div class="sc-label">Avg / Month</div>
+      <div class="sc-value">${fmtKWD(avgPerMonth)}</div>
+      <div class="sc-sub">&nbsp;</div>
+    </div>
+    <div class="summary-card teal">
+      <div class="sc-label">Avg / Day</div>
+      <div class="sc-value">${fmtKWD(avgPerDay)}</div>
+      <div class="sc-sub">${fmtNum(grandDays)} active days</div>
+    </div>
+    <div class="summary-card purple">
+      <div class="sc-label">Avg / Invoice</div>
+      <div class="sc-value">${fmtKWD(avgPerInv)}</div>
+      <div class="sc-sub">&nbsp;</div>
+    </div>
+    <div class="summary-card pink">
+      <div class="sc-label">Best Month</div>
+      <div class="sc-value">${bm ? MONTH_ABBR[bm.month]+' '+bm.year : '—'}</div>
+      <div class="sc-sub">${fmtKWD(bestMonthTotal)}</div>
+    </div>
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   MONTH BLOCK — overall + per-division tabs
+══════════════════════════════════════════════ */
+function buildMonthBlock(m, key) {
+  const uid = key.replace('-','_');
+  const s   = computeStats(m.days, m.invoiceCounts);
+  if (!s) return '';
+
+  const headerCls = MONTH_CLASSES[m.month];
+  const color     = PALETTE[m.month];
+
+  // ── Overall daily table ──
+  let rows = '';
+  for (const d of s.dayNums) {
+    const val  = m.days[d];
+    const invC = m.invoiceCounts[d] || 0;
+    const pct  = s.total ? (val/s.total*100) : 0;
+    const barW = Math.max(2, Math.round(pct*2));
+    const isBest  = d === s.bestDay;
+    const isWorst = d === s.worstDay;
+    const trCls   = isBest ? 'best-row' : (isWorst ? 'worst-row' : '');
+    const badge   = isBest ? ' 🏆' : (isWorst ? ' ⚠' : '');
+    rows += `
+    <tr class="${trCls}">
+      <td><strong>Day ${d}</strong></td>
+      <td>${formatDayLabel(m.year, m.month, d)}</td>
+      <td class="ta-r"><strong>${fmtKWD(val)}</strong>${badge}</td>
+      <td class="ta-c">${fmtNum(invC)}</td>
+      <td class="ta-r">${invC ? fmtKWD(val/invC) : '—'}</td>
+      <td>
+        <div class="pct-bar-wrap">
+          <div class="pct-bar" style="width:${barW}px;background:${color}"></div>
+          <span class="pct-txt">${pct.toFixed(2)}%</span>
+        </div>
+      </td>
+    </tr>`;
+  }
+  rows += `
+  <tr class="total-row">
+    <td colspan="2">📊 Monthly Total</td>
+    <td class="ta-r">${fmtKWD(s.total)}</td>
+    <td class="ta-c">${fmtNum(s.totalInv)}</td>
+    <td class="ta-r">${fmtKWD(s.avgPerInv)}</td>
+    <td><span style="font-size:10.5px;color:var(--muted)">100.00%</span></td>
+  </tr>`;
+
+  // ── Division tabs ──
+  const divKeys = Object.keys(m.divisions).sort();
+  let divTabBtns = `<button class="div-tab-btn active" onclick="switchDivTab('${uid}','__all__',this)">🏢 All Divisions</button>`;
+  let divPanels  = '';
+
+  for (const div of divKeys) {
+    const dName = DIV_NAME_MAP[div] || div;
+    const dColor= DIV_COLOR_MAP[div] || '#64748b';
+    const ds    = computeStats(m.divisions[div].days, m.divisions[div].invoiceCounts);
+    if (!ds) continue;
+
+    divTabBtns += `<button class="div-tab-btn" onclick="switchDivTab('${uid}','${div}',this)"
+      style="border-left:3px solid ${dColor}">${dName}</button>`;
+
+    // Division daily table
+    let dRows = '';
+    for (const d of ds.dayNums) {
+      const val  = m.divisions[div].days[d];
+      const invC = m.divisions[div].invoiceCounts[d] || 0;
+      const pct  = ds.total ? (val/ds.total*100) : 0;
+      const barW = Math.max(2, Math.round(pct*2));
+      const isBest  = d === ds.bestDay;
+      const isWorst = d === ds.worstDay;
+      const trCls   = isBest ? 'best-row' : (isWorst ? 'worst-row' : '');
+      const badge   = isBest ? ' 🏆' : (isWorst ? ' ⚠' : '');
+      // Contribution to overall month
+      const overallPct = s.total ? (val/s.total*100) : 0;
+      dRows += `
+      <tr class="${trCls}">
+        <td><strong>Day ${d}</strong></td>
+        <td>${formatDayLabel(m.year, m.month, d)}</td>
+        <td class="ta-r"><strong>${fmtKWD(val)}</strong>${badge}</td>
+        <td class="ta-c">${fmtNum(invC)}</td>
+        <td class="ta-r">${invC ? fmtKWD(val/invC) : '—'}</td>
+        <td>
+          <div class="pct-bar-wrap">
+            <div class="pct-bar" style="width:${barW}px;background:${dColor}"></div>
+            <span class="pct-txt">${pct.toFixed(2)}%</span>
+          </div>
+        </td>
+        <td class="ta-r" style="color:${dColor};font-weight:600">${overallPct.toFixed(1)}%</td>
+      </tr>`;
+    }
+    dRows += `
+    <tr class="total-row">
+      <td colspan="2">Subtotal — ${dName}</td>
+      <td class="ta-r">${fmtKWD(ds.total)}</td>
+      <td class="ta-c">${fmtNum(ds.totalInv)}</td>
+      <td class="ta-r">${fmtKWD(ds.avgPerInv)}</td>
+      <td colspan="2" style="font-size:10.5px;color:var(--muted)">${s.total?(ds.total/s.total*100).toFixed(1)+'% of month':''}</td>
+    </tr>`;
+
+    divPanels += `
+    <div class="div-panel" id="divpanel_${uid}_${div.replace(/[^a-z0-9]/gi,'_')}">
+      <div class="div-summary-strip">
+        <div class="div-kpi"><div class="dk-label">Total Revenue</div><div class="dk-val" style="color:${dColor}">${fmtKWD(ds.total)}</div></div>
+        <div class="div-kpi"><div class="dk-label">Invoices</div><div class="dk-val">${fmtNum(ds.totalInv)}</div></div>
+        <div class="div-kpi"><div class="dk-label">Avg / Day</div><div class="dk-val">${fmtKWD(ds.avgPerDay)}</div></div>
+        <div class="div-kpi"><div class="dk-label">Avg / Invoice</div><div class="dk-val">${fmtKWD(ds.avgPerInv)}</div></div>
+        <div class="div-kpi"><div class="dk-label">Best Day</div><div class="dk-val">Day ${ds.bestDay}</div></div>
+        <div class="div-kpi"><div class="dk-label">Worst Day</div><div class="dk-val">Day ${ds.worstDay}</div></div>
+        <div class="div-kpi"><div class="dk-label">Month Share</div><div class="dk-val">${s.total?(ds.total/s.total*100).toFixed(1)+'%':'—'}</div></div>
+      </div>
+      <div class="table-scroll">
+        <table class="data-table">
+          <thead><tr>
+            <th>Day</th><th>Date</th>
+            <th class="ta-r">Sales (KWD)</th>
+            <th class="ta-c">Invoices</th>
+            <th class="ta-r">Avg/Invoice</th>
+            <th>% of Division</th>
+            <th class="ta-r">% of Month</th>
+          </tr></thead>
+          <tbody>${dRows}</tbody>
+        </table>
+      </div>
+      <div class="chart-wrap">
+        <div class="chart-title">
+          <span>📈 ${dName} — Daily Trend</span>
+          <span class="chart-total-badge" style="background:${dColor}">Total: ${fmtKWD(ds.total)}</span>
+        </div>
+        <div class="canvas-sm"><canvas id="divchart_${uid}_${div.replace(/[^a-z0-9]/gi,'_')}"></canvas></div>
+      </div>
+    </div>`;
+  }
+
+  // ── Month performance narrative & recommendations ──
+  const narrative   = buildMonthNarrative(m, key, s);
+  const monthRecos  = buildMonthRecos(m, key, s);
+
+  return `
+  <div class="month-block">
+    <div class="month-header ${headerCls}">
+      <div class="month-title">${MONTHS[m.month]} ${m.year}</div>
+      <div class="month-meta">
+        <div class="meta-item">Total: <span>${fmtKWD(s.total)}</span></div>
+        <div class="meta-item">Invoices: <span>${fmtNum(s.totalInv)}</span></div>
+        <div class="meta-item">Avg/Day: <span>${fmtKWD(s.avgPerDay)}</span></div>
+        <div class="meta-item">Avg/Invoice: <span>${fmtKWD(s.avgPerInv)}</span></div>
+        <div class="meta-item">Best: <span>Day ${s.bestDay}</span></div>
+        <div class="meta-item">Worst: <span>Day ${s.worstDay}</span></div>
+      </div>
+    </div>
+    <div class="month-body">
+
+      <!-- View toggles -->
+      <div class="tab-bar">
+        <button class="tab-btn active" onclick="switchTab('${uid}','table',this)">📋 Table</button>
+        <button class="tab-btn" onclick="switchTab('${uid}','chart',this)">📈 Chart</button>
+        <button class="tab-btn" onclick="switchTab('${uid}','both',this)">⊞ Both</button>
+        <button class="tab-btn" onclick="switchTab('${uid}','divisions',this)">🏢 Divisions</button>
+        <button class="tab-btn" onclick="switchTab('${uid}','analysis',this)">💡 Analysis</button>
+      </div>
+
+      <!-- Overall table -->
+      <div id="${uid}_table">
+        <div class="table-scroll">
+          <table class="data-table">
+            <thead><tr>
+              <th>Day</th><th>Date</th>
+              <th class="ta-r">Sales (KWD)</th>
+              <th class="ta-c">Invoices</th>
+              <th class="ta-r">Avg/Invoice</th>
+              <th>% of Month</th>
+            </tr></thead>
+            <tbody>${rows}</tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- Overall chart -->
+      <div id="${uid}_chart" style="display:none">
+        <div class="chart-wrap">
+          <div class="chart-title">
+            <span>Daily Sales Trend — ${MONTHS[m.month]} ${m.year}</span>
+            <span class="chart-total-badge">Total: ${fmtKWD(s.total)}</span>
+          </div>
+          <div class="canvas-sm"><canvas id="chart_${uid}"></canvas></div>
+        </div>
+      </div>
+
+      <!-- Divisions panel -->
+      <div id="${uid}_divisions" style="display:none">
+        <div class="div-tab-bar" id="divtabs_${uid}">${divTabBtns}</div>
+        <div id="divpanel_${uid}___all__">
+          <div class="chart-wrap">
+            <div class="chart-title">
+              <span>All Divisions — Daily Sales Overlay</span>
+              <span class="chart-total-badge">Total: ${fmtKWD(s.total)}</span>
+            </div>
+            <div class="canvas-md"><canvas id="chart_divall_${uid}"></canvas></div>
+          </div>
+          ${buildDivisionComparisonCards(m, key, s)}
+        </div>
+        ${divPanels}
+      </div>
+
+      <!-- Analysis panel -->
+      <div id="${uid}_analysis" style="display:none">
+        ${narrative}
+        ${monthRecos}
+      </div>
+
+    </div>
+  </div>`;
+}
+
+function formatDayLabel(year, month, day) {
+  return new Date(year, month, day).toLocaleDateString('en-GB',{weekday:'short',day:'2-digit',month:'short'});
+}
+
+function switchTab(uid, mode, btn) {
+  const panels = ['table','chart','divisions','analysis'];
+  for (const p of panels) {
+    const el = document.getElementById(`${uid}_${p}`);
+    if (el) el.style.display = 'none';
+  }
+  if (mode === 'both') {
+    document.getElementById(`${uid}_table`).style.display  = '';
+    document.getElementById(`${uid}_chart`).style.display  = '';
+  } else {
+    const target = document.getElementById(`${uid}_${mode}`);
+    if (target) target.style.display = '';
+  }
+  btn.closest('.tab-bar').querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+function switchDivTab(uid, div, btn) {
+  // Hide all div panels for this uid
+  document.querySelectorAll(`[id^="divpanel_${uid}_"]`).forEach(el => el.style.display = 'none');
+  const safeDiv = div.replace(/[^a-z0-9]/gi,'_');
+  const target  = document.getElementById(`divpanel_${uid}_${safeDiv}`);
+  if (target) target.style.display = '';
+  btn.closest('.div-tab-bar').querySelectorAll('.div-tab-btn').forEach(b=>b.classList.remove('active'));
+  btn.classList.add('active');
+}
+
+/* Division comparison cards inside the "All Divisions" tab */
+function buildDivisionComparisonCards(m, key, overallStats) {
+  const divKeys = Object.keys(m.divisions).sort();
+  if (!divKeys.length) return '';
+  let cards = '<div class="div-compare-grid" style="margin-top:12px">';
+  for (const div of divKeys) {
+    const dColor = DIV_COLOR_MAP[div] || '#64748b';
+    const dName  = DIV_NAME_MAP[div]  || div;
+    const ds     = computeStats(m.divisions[div].days, m.divisions[div].invoiceCounts);
+    if (!ds) continue;
+    const share  = overallStats.total ? (ds.total/overallStats.total*100).toFixed(1)+'%' : '—';
+    cards += `
+    <div class="div-compare-card" style="border-top:3px solid ${dColor}">
+      <h4 style="color:${dColor}">${dName}</h4>
+      <div class="perf-row"><span class="label">Revenue</span><span class="value">${fmtKWD(ds.total)}</span></div>
+      <div class="perf-row"><span class="label">Month Share</span><span class="value" style="color:${dColor}">${share}</span></div>
+      <div class="perf-row"><span class="label">Invoices</span><span class="value">${fmtNum(ds.totalInv)}</span></div>
+      <div class="perf-row"><span class="label">Avg/Invoice</span><span class="value">${fmtKWD(ds.avgPerInv)}</span></div>
+      <div class="perf-row"><span class="label">Avg/Day</span><span class="value">${fmtKWD(ds.avgPerDay)}</span></div>
+      <div class="perf-row"><span class="label">Best Day</span><span class="value">Day ${ds.bestDay}</span></div>
+      <div class="perf-row"><span class="label">Worst Day</span><span class="value">Day ${ds.worstDay}</span></div>
+    </div>`;
+  }
+  cards += '</div>';
+  return cards;
+}
+
+/* ══════════════════════════════════════════════
+   MONTH NARRATIVE
+══════════════════════════════════════════════ */
+function buildMonthNarrative(m, key, s) {
+  const items = [];
+  const monthName = `${MONTHS[m.month]} ${m.year}`;
+  const divKeys   = Object.keys(m.divisions).sort();
+
+  // Overall performance
+  const cv = s.cv;
+  const volatility = cv < 0.3 ? 'stable' : cv < 0.6 ? 'moderately volatile' : 'highly volatile';
+  items.push({ icon:'📊', text: `<strong>${monthName}</strong> generated <strong>${fmtKWD(s.total)}</strong> across <strong>${s.activeDays} active days</strong> from <strong>${fmtNum(s.totalInv)} invoices</strong>. Daily performance was <strong>${volatility}</strong> (CV = ${(cv*100).toFixed(0)}%).` });
+
+  // Best/worst day
+  items.push({ icon:'🏆', text: `Best day was <strong>Day ${s.bestDay}</strong> (${formatDayLabel(m.year,m.month,s.bestDay)}) with <strong>${fmtKWD(m.days[s.bestDay])}</strong> — <strong>${s.total?(m.days[s.bestDay]/s.total*100).toFixed(1):'0'}% of monthly revenue</strong> in a single day.` });
+  items.push({ icon:'⚠️', text: `Worst day was <strong>Day ${s.worstDay}</strong> (${formatDayLabel(m.year,m.month,s.worstDay)}) with only <strong>${fmtKWD(m.days[s.worstDay])}</strong>. This represents a revenue gap of <strong>${fmtKWD(m.days[s.bestDay]-m.days[s.worstDay])}</strong> vs the best day.` });
+
+  // Avg invoice value
+  items.push({ icon:'🧾', text: `Average invoice value was <strong>${fmtKWD(s.avgPerInv)}</strong>. ${s.avgPerInv < 50 ? 'This is relatively low — there may be opportunities to upsell or bundle services.' : s.avgPerInv > 200 ? 'This reflects high-value transactions — quality over volume.' : 'This is a healthy ticket size — monitor for consistency.'}` });
+
+  // Division contributions
+  if (divKeys.length > 1) {
+    const divShares = divKeys.map(div => {
+      const ds = computeStats(m.divisions[div].days, m.divisions[div].invoiceCounts);
+      return { name: DIV_NAME_MAP[div]||div, total: ds?.total||0, share: s.total?(((ds?.total||0)/s.total)*100).toFixed(1):'0' };
+    }).sort((a,b)=>b.total-a.total);
+    const topDiv = divShares[0];
+    const botDiv = divShares[divShares.length-1];
+    items.push({ icon:'🏢', text: `<strong>${topDiv.name}</strong> was the top-contributing division at <strong>${topDiv.share}%</strong> of monthly revenue (${fmtKWD(topDiv.total)}). <strong>${botDiv.name}</strong> contributed the least at <strong>${botDiv.share}%</strong> (${fmtKWD(botDiv.total)}).` });
+  }
+
+  // Strong vs weak days
+  const aboveAvgDays = s.dayNums.filter(d => m.days[d] > s.avgPerDay);
+  const belowAvgDays = s.dayNums.filter(d => m.days[d] < s.avgPerDay * 0.7);
+  if (aboveAvgDays.length) items.push({ icon:'💪', text: `<strong>${aboveAvgDays.length} days</strong> exceeded average daily sales: Days <strong>${aboveAvgDays.join(', ')}</strong>. These are your power days.` });
+  if (belowAvgDays.length) items.push({ icon:'📉', text: `<strong>${belowAvgDays.length} days</strong> fell significantly below average (< 70%): Days <strong>${belowAvgDays.join(', ')}</strong>. These need targeted intervention.` });
+
+  const itemsHtml = items.map(i=>`
+  <div class="narrative-item">
+    <span class="n-icon">${i.icon}</span>
+    <span class="n-text">${i.text}</span>
+  </div>`).join('');
+
+  return `
+  <div class="perf-narrative">
+    <h3>📝 Performance Summary — ${MONTHS[m.month]} ${m.year}</h3>
+    ${itemsHtml}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   MONTH STRATEGIC RECOMMENDATIONS
+══════════════════════════════════════════════ */
+function buildMonthRecos(m, key, s) {
+  const recos = [];
+  const divKeys = Object.keys(m.divisions).sort();
+
+  // Weak days promotion
+  const weakDays  = s.dayNums.filter(d => m.days[d] < s.avgPerDay * 0.7);
+  const strongDay = s.dayNums.filter(d => m.days[d] >= s.avgPerDay * 1.3);
+  if (weakDays.length) {
+    recos.push({ icon:'🎯', text: `<strong>Launch targeted promotions on Days ${weakDays.slice(0,5).join(', ')}.</strong> These are consistently weak — offer discounts, bundles, or flash deals to drive traffic. Even a 20% increase on these days would add approx. <strong>${fmtKWD(weakDays.reduce((t,d)=>t+s.avgPerDay*0.2,0))}</strong> in revenue.` });
+  }
+
+  // Strong days maximization
+  if (strongDay.length) {
+    recos.push({ icon:'🚀', text: `<strong>Maximize your strong days (Days ${strongDay.slice(0,5).join(', ')}).</strong> These already perform above average — consider premium upsell offers, loyalty rewards, or extended hours to capture more spend per customer. Don't leave revenue on the table.` });
+  }
+
+  // Invoice value improvement
+  if (s.avgPerInv < 80) {
+    recos.push({ icon:'💰', text: `<strong>Average invoice value (${fmtKWD(s.avgPerInv)}) is low.</strong> Focus on upselling complementary services, introducing service bundles, or minimum booking values. Raising average invoice by just KWD 10 across ${fmtNum(s.totalInv)} invoices = <strong>${fmtKWD(s.totalInv*10)}</strong> additional revenue.` });
+  }
+
+  // Volatility
+  if (s.cv > 0.5) {
+    recos.push({ icon:'📊', text: `<strong>High sales volatility detected (CV=${(s.cv*100).toFixed(0)}%).</strong> Erratic daily patterns signal unpredictable demand. Consider: pre-booking incentives, membership programs, or subscription services to create predictable revenue streams.` });
+  }
+
+  // Division underperformance
+  if (divKeys.length > 1) {
+    const divStats = divKeys.map(div => {
+      const ds = computeStats(m.divisions[div].days, m.divisions[div].invoiceCounts);
+      return { name: DIV_NAME_MAP[div]||div, color: DIV_COLOR_MAP[div], total: ds?.total||0, avgInv: ds?.avgPerInv||0, invCount: ds?.totalInv||0 };
+    }).sort((a,b)=>a.total-b.total);
+
+    if (divStats.length >= 2) {
+      const weakDiv = divStats[0];
+      const topDiv  = divStats[divStats.length-1];
+      recos.push({ icon:'🏢', text: `<strong>${weakDiv.name} is the weakest division</strong> with only ${fmtKWD(weakDiv.total)} (avg invoice: ${fmtKWD(weakDiv.avgInv)}). Compare its operational model to <strong>${topDiv.name}</strong> (${fmtKWD(topDiv.total)}) and identify: staffing gaps, service gaps, or marketing gaps.` });
+    }
+  }
+
+  // Gap analysis — revenue lost vs potential
+  const potentialMax = s.activeDays * m.days[s.bestDay];
+  const revenueGap   = potentialMax - s.total;
+  if (revenueGap > s.total * 0.3) {
+    recos.push({ icon:'🔍', text: `<strong>Revenue Gap Analysis:</strong> If every day matched your best day (Day ${s.bestDay} = ${fmtKWD(m.days[s.bestDay])}), total would be <strong>${fmtKWD(potentialMax)}</strong>. You are leaving <strong>${fmtKWD(revenueGap)}</strong> on the table. Not all can be recovered, but even 20% recovery = <strong>${fmtKWD(revenueGap*0.2)}</strong> additional revenue.` });
+  }
+
+  const recoHtml = recos.map(r=>`
+  <div class="reco-item">
+    <span class="reco-icon">${r.icon}</span>
+    <span class="reco-text">${r.text}</span>
+  </div>`).join('');
+
+  return `
+  <div class="reco-block">
+    <h3>🎯 Strategic Recommendations — ${MONTHS[m.month]} ${m.year}</h3>
+    ${recoHtml || '<div class="reco-item"><span class="reco-icon">✅</span><span class="reco-text">Performance is strong. Maintain current strategies and monitor for any early dips.</span></div>'}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   COMPARISON SECTION
+══════════════════════════════════════════════ */
+function buildComparisonSection(grouped, monthKeys) {
+  // Day-to-day comparison (up to 31 days)
+  const allDays = new Set();
+  for (const key of monthKeys) Object.keys(grouped[key].days).forEach(d=>allDays.add(Number(d)));
+  const sortedDays = [...allDays].sort((a,b)=>a-b);
+
+  let thCells = '<th>Day</th>';
+  for (const key of monthKeys) {
+    const m = grouped[key];
+    thCells += `<th>${MONTH_ABBR[m.month]} ${m.year}</th>`;
+  }
+  if (monthKeys.length === 2) thCells += '<th>Diff (KWD)</th><th>Δ%</th>';
+
+  let dayRows = '';
+  for (const day of sortedDays.slice(0,31)) {
+    const vals = monthKeys.map(key => grouped[key].days[day] || 0);
+    let rowHtml = `<td>${day}</td>`;
+    for (const v of vals) rowHtml += `<td>${v ? fmtKWD(v) : '<span style="color:#cbd5e1">—</span>'}</td>`;
+    if (monthKeys.length === 2) {
+      const diff = vals[1]-vals[0];
+      const pct  = vals[0] ? (diff/vals[0]*100) : null;
+      const cls  = diff>0?'up':(diff<0?'down':'neutral');
+      const sign = diff>0?'+':'';
+      rowHtml += `<td class="${cls}">${sign}${fmtKWD(diff)}</td>`;
+      rowHtml += `<td class="${cls}">${pct!==null?sign+pct.toFixed(1)+'%':'—'}</td>`;
+    }
+    dayRows += `<tr>${rowHtml}</tr>`;
+  }
+
+  // Performance summary cards
+  let perfCards = '';
+  for (const key of monthKeys) {
+    const m = grouped[key];
+    const s = computeStats(m.days, m.invoiceCounts);
+    if (!s) continue;
+    const color = PALETTE[m.month];
+    perfCards += `
+    <div class="perf-card" style="border-top:3px solid ${color}">
+      <h4 style="color:${color}">${MONTHS[m.month]} ${m.year}</h4>
+      <div class="perf-row"><span class="label">Total Sales</span><span class="value">${fmtKWD(s.total)}</span></div>
+      <div class="perf-row"><span class="label">Total Invoices</span><span class="value">${fmtNum(s.totalInv)}</span></div>
+      <div class="perf-row"><span class="label">Avg/Day</span><span class="value">${fmtKWD(s.avgPerDay)}</span></div>
+      <div class="perf-row"><span class="label">Avg/Invoice</span><span class="value">${fmtKWD(s.avgPerInv)}</span></div>
+      <div class="perf-row"><span class="label">Best Day</span><span class="value">Day ${s.bestDay} — ${fmtKWD(m.days[s.bestDay])}</span></div>
+      <div class="perf-row"><span class="label">Worst Day</span><span class="value">Day ${s.worstDay} — ${fmtKWD(m.days[s.worstDay])}</span></div>
+      <div class="perf-row"><span class="label">Active Days</span><span class="value">${s.activeDays}</span></div>
+    </div>`;
+  }
+
+  // Division cross-month comparison
+  const allDivs = new Set();
+  for (const key of monthKeys) Object.keys(grouped[key].divisions).forEach(d=>allDivs.add(d));
+  let divCompHtml = '';
+  if (allDivs.size > 0) {
+    let divRows = '';
+    for (const div of [...allDivs].sort()) {
+      const dName  = DIV_NAME_MAP[div] || div;
+      const dColor = DIV_COLOR_MAP[div] || '#64748b';
+      let row = `<td style="text-align:left;font-weight:600;color:${dColor}">${dName}</td>`;
+      for (const key of monthKeys) {
+        const ds = grouped[key].divisions[div];
+        const t  = ds ? Object.values(ds.days).reduce((a,b)=>a+b,0) : 0;
+        row += `<td>${t ? fmtKWD(t) : '<span style="color:#cbd5e1">—</span>'}</td>`;
+      }
+      divRows += `<tr>${row}</tr>`;
+    }
+    let divThs = '<th style="text-align:left">Division</th>';
+    for (const key of monthKeys) {
+      const m = grouped[key];
+      divThs += `<th>${MONTH_ABBR[m.month]} ${m.year}</th>`;
+    }
+    divCompHtml = `
+    <div class="section-header" style="margin-top:16px;font-size:13px">🏢 Division × Month Revenue</div>
+    <div class="day-compare-wrap">
+      <table class="day-compare-table">
+        <thead><tr>${divThs}</tr></thead>
+        <tbody>${divRows}</tbody>
+      </table>
+    </div>`;
+  }
+
+  return `
+  <div class="section-header">🔀 Month-to-Month Comparison <span class="badge" style="background:var(--purple-lt);color:var(--purple)">${monthKeys.length} months</span></div>
+  <div class="comparison-block">
+    <div class="chart-wrap">
+      <div class="chart-title"><span>📈 Daily Sales Overlay — All Selected Months</span></div>
+      <div class="canvas-lg"><canvas id="chart_comparison"></canvas></div>
+    </div>
+    <div class="section-header" style="margin-top:16px;font-size:13px">📊 Monthly Performance Summary</div>
+    <div class="perf-grid">${perfCards}</div>
+    <div class="section-header" style="margin-top:4px;font-size:13px">📆 Day-to-Day Comparison</div>
+    <div class="day-compare-wrap">
+      <table class="day-compare-table">
+        <thead><tr>${thCells}</tr></thead>
+        <tbody>${dayRows}</tbody>
+      </table>
+    </div>
+    ${divCompHtml}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   GLOBAL INSIGHTS
+══════════════════════════════════════════════ */
+function buildGlobalInsights(grouped, monthKeys) {
+  const insights = [];
+  const monthTotals = {};
+  let bestKey=null, worstKey=null, bestT=0, worstT=Infinity;
+
+  for (const key of monthKeys) {
+    const s = computeStats(grouped[key].days, grouped[key].invoiceCounts);
+    if (!s) continue;
+    monthTotals[key] = s;
+    if (s.total > bestT)  { bestT  = s.total; bestKey  = key; }
+    if (s.total < worstT) { worstT = s.total; worstKey = key; }
+  }
+
+  if (bestKey) {
+    const bm = grouped[bestKey];
+    const bs = monthTotals[bestKey];
+    insights.push({ icon:'🏆', text: `<strong>${MONTHS[bm.month]} ${bm.year}</strong> was the best month with <strong>${fmtKWD(bs.total)}</strong> and an avg invoice of <strong>${fmtKWD(bs.avgPerInv)}</strong>. It recorded <strong>${fmtNum(bs.totalInv)}</strong> invoices.` });
+  }
+  if (worstKey && worstKey !== bestKey) {
+    const wm = grouped[worstKey];
+    const ws = monthTotals[worstKey];
+    insights.push({ icon:'📉', text: `<strong>${MONTHS[wm.month]} ${wm.year}</strong> was the lowest month at <strong>${fmtKWD(ws.total)}</strong> — <strong>${bestT?(100-ws.total/bestT*100).toFixed(1):'?'}% below</strong> the best month. Revenue difference: <strong>${fmtKWD(bestT-ws.total)}</strong>.` });
+  }
+
+  // Trend
+  if (monthKeys.length >= 2) {
+    const totals = monthKeys.map(k => monthTotals[k]?.total || 0);
+    let up=0,dn=0;
+    for (let i=1;i<totals.length;i++) { if(totals[i]>totals[i-1]) up++; else if(totals[i]<totals[i-1]) dn++; }
+    if      (up > dn) insights.push({ icon:'📈', text: `Overall sales trend across selected months is <strong>upward</strong> — ${up} of ${totals.length-1} month transitions showed growth.` });
+    else if (dn > up) insights.push({ icon:'⚠', text: `Overall sales trend is <strong>declining</strong> — ${dn} of ${totals.length-1} month transitions fell. Immediate strategic review recommended.` });
+    else              insights.push({ icon:'↔', text: `Sales are <strong>mixed with no clear trend</strong> — alternating growth and decline. Investigate root causes month by month.` });
+  }
+
+  // Cross-month strong/weak days
+  if (monthKeys.length >= 2) {
+    const daySums={}, dayCounts={};
+    for (const key of monthKeys) {
+      for (const [d,v] of Object.entries(grouped[key].days)) {
+        daySums[d]   = (daySums[d]||0)+v;
+        dayCounts[d] = (dayCounts[d]||0)+1;
+      }
+    }
+    const full = Object.keys(daySums).filter(d=>dayCounts[d]===monthKeys.length);
+    if (full.length>=3) {
+      const sorted = full.sort((a,b)=>daySums[b]-daySums[a]);
+      insights.push({ icon:'💪', text: `Consistently <strong>strongest days</strong> across all months: <strong>Days ${sorted.slice(0,3).map(d=>`${d}`).join(', ')}</strong>. Reliable revenue anchors — maximize these.` });
+      insights.push({ icon:'😴', text: `Consistently <strong>weakest days</strong> across all months: <strong>Days ${sorted.slice(-3).map(d=>`${d}`).join(', ')}</strong>. Chronic underperformers — targeted promotions required.` });
+    }
+  }
+
+  const html = insights.map(i=>`
+  <div class="insight-item">
+    <span class="insight-icon">${i.icon}</span>
+    <span class="insight-text">${i.text}</span>
+  </div>`).join('');
+
+  return `
+  <div class="section-header">💡 Overall Insights</div>
+  <div class="insights-block">
+    <h3>📊 Cross-Month Analysis</h3>
+    ${html || '<div class="insight-item"><span class="insight-icon">ℹ</span><span class="insight-text">Select multiple months for comparative insights.</span></div>'}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   GLOBAL STRATEGIC RECOMMENDATIONS
+══════════════════════════════════════════════ */
+function buildGlobalRecommendations(grouped, monthKeys) {
+  const recos = [];
+
+  // Revenue concentration analysis
+  if (monthKeys.length >= 2) {
+    let totalAll=0, bestMonthTotal=0, bestKey=null;
+    for (const key of monthKeys) {
+      const t = Object.values(grouped[key].days).reduce((a,b)=>a+b,0);
+      totalAll += t;
+      if (t > bestMonthTotal) { bestMonthTotal=t; bestKey=key; }
+    }
+    if (bestKey) {
+      const conc = (bestMonthTotal/totalAll*100).toFixed(1);
+      if (parseFloat(conc) > 40) {
+        const bm = grouped[bestKey];
+        recos.push({ icon:'⚖️', text: `<strong>Revenue is heavily concentrated in ${MONTHS[bm.month]} ${bm.year} (${conc}% of total).</strong> This creates financial risk — one bad month breaks the business. Build a strategy to raise floor performance in weaker months.` });
+      }
+    }
+  }
+
+  // Invoice volume vs value opportunity
+  let avgInvAll=0, count=0;
+  for (const key of monthKeys) {
+    const s = computeStats(grouped[key].days, grouped[key].invoiceCounts);
+    if (s) { avgInvAll+=s.avgPerInv; count++; }
+  }
+  if (count) {
+    avgInvAll /= count;
+    if (avgInvAll < 100) {
+      recos.push({ icon:'💰', text: `<strong>Overall average invoice value (${fmtKWD(avgInvAll)}) is low across all months.</strong> This suggests either low-value services or missed upsell opportunities. Introducing packages, bundles, or minimum service amounts can significantly raise this metric.` });
+    }
+  }
+
+  // Division-level cross-month recommendation
+  const allDivs = new Set();
+  for (const key of monthKeys) Object.keys(grouped[key].divisions).forEach(d=>allDivs.add(d));
+  if (allDivs.size > 1 && monthKeys.length >= 1) {
+    const divPerf = {};
+    for (const div of allDivs) {
+      let t=0, inv=0;
+      for (const key of monthKeys) {
+        const ds = grouped[key].divisions[div];
+        if (ds) {
+          t   += Object.values(ds.days).reduce((a,b)=>a+b,0);
+          inv += Object.values(ds.invoiceCounts).reduce((a,b)=>a+b,0);
+        }
+      }
+      divPerf[div] = { total:t, avgInv: inv?t/inv:0, name: DIV_NAME_MAP[div]||div };
+    }
+    const sorted = Object.values(divPerf).sort((a,b)=>a.total-b.total);
+    if (sorted.length >= 2) {
+      const bot = sorted[0], top = sorted[sorted.length-1];
+      recos.push({ icon:'🏢', text: `<strong>${bot.name} consistently underperforms</strong> vs <strong>${top.name}</strong> across all selected months. Total revenue gap: <strong>${fmtKWD(top.total-bot.total)}</strong>. Analyse: service mix, client acquisition, staff performance, and service quality in ${bot.name}.` });
+    }
+  }
+
+  recos.push({ icon:'📅', text: `<strong>Run this report monthly on Day 3</strong> (when all prior-month invoices are confirmed) to catch trends early. Set a monthly revenue target and track daily progress against it — don't wait until month-end to react.` });
+
+  const html = recos.map(r=>`
+  <div class="reco-item">
+    <span class="reco-icon">${r.icon}</span>
+    <span class="reco-text">${r.text}</span>
+  </div>`).join('');
+
+  return `
+  <div class="section-header">🎯 Strategic Recommendations</div>
+  <div class="reco-block">
+    <h3>🔑 Business Actions — Based on Your Data</h3>
+    ${html}
+  </div>`;
+}
+
+/* ══════════════════════════════════════════════
+   CHART BUILDING
+══════════════════════════════════════════════ */
+function destroyCharts() {
+  for (const k of Object.keys(CHART_INSTANCES)) {
+    try { CHART_INSTANCES[k].destroy(); } catch(e) {}
+  }
+  CHART_INSTANCES = {};
+}
+
+function buildAllCharts(grouped, monthKeys) {
+  // Individual month overall charts
+  for (const key of monthKeys) {
+    const uid = key.replace('-','_');
+    const canvas = document.getElementById(`chart_${uid}`);
+    if (canvas) buildMonthChart(canvas, grouped[key]);
+
+    // Division overlay chart for "All Divisions" tab
+    const divAllCanvas = document.getElementById(`chart_divall_${uid}`);
+    if (divAllCanvas) buildDivAllChart(divAllCanvas, grouped[key]);
+
+    // Individual division charts
+    for (const div of Object.keys(grouped[key].divisions)) {
+      const safeDiv = div.replace(/[^a-z0-9]/gi,'_');
+      const dc = document.getElementById(`divchart_${uid}_${safeDiv}`);
+      if (dc) buildDivisionChart(dc, grouped[key].divisions[div], div);
+    }
+  }
+
+  // Comparison overlay chart
+  if (monthKeys.length >= 2) {
+    const canvas = document.getElementById('chart_comparison');
+    if (canvas) buildComparisonChart(canvas, grouped, monthKeys);
+  }
+}
+
+function buildMonthChart(canvas, m) {
+  const s     = computeStats(m.days, m.invoiceCounts);
+  if (!s) return;
+  const color = PALETTE[m.month];
+  const avgArr = s.dayNums.map(()=>s.avgPerDay);
+
+  const ctx = canvas.getContext('2d');
+  CHART_INSTANCES[canvas.id] = new Chart(ctx, {
+    type: 'line',
+    data: {
+      labels: s.dayNums,
+      datasets: [
+        {
+          label: `${MONTHS[m.month]} Daily Sales`,
+          data: s.vals,
+          borderColor: color,
+          backgroundColor: hexToRgba(color, 0.09),
+          borderWidth: 2.5, pointRadius: 4, pointHoverRadius: 6,
+          pointBackgroundColor: color, tension: 0.38, fill: true,
+        },
+        {
+          label: `Avg/Day (${fmtKWD(s.avgPerDay)})`,
+          data: avgArr,
+          borderColor: '#94a3b8', borderDash: [5,4], borderWidth: 1.5,
+          pointRadius: 0, tension: 0, fill: false,
+        }
+      ]
+    },
+    options: chartOptions()
+  });
+}
+
+function buildDivAllChart(canvas, m) {
+  const labels = Array.from({length:31},(_,i)=>i+1);
+  const datasets = Object.keys(m.divisions).sort().map(div => {
+    const col = DIV_COLOR_MAP[div] || '#64748b';
+    return {
+      label: DIV_NAME_MAP[div] || div,
+      data: labels.map(d => m.divisions[div].days[d] || null),
+      borderColor: col, backgroundColor: hexToRgba(col,0.05),
+      borderWidth: 2, pointRadius: 3, pointHoverRadius: 5,
+      tension: 0.35, fill: false, spanGaps: false,
+    };
+  });
+
+  CHART_INSTANCES[canvas.id] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: { labels, datasets },
+    options: { ...chartOptions(), plugins: { ...chartOptions().plugins, legend: { position:'top', labels:{font:{size:11},boxWidth:12} } } }
+  });
+}
+
+function buildDivisionChart(canvas, divData, divUUID) {
+  const col    = DIV_COLOR_MAP[divUUID] || '#64748b';
+  const dayNums = Object.keys(divData.days).map(Number).sort((a,b)=>a-b);
+  const vals    = dayNums.map(d=>divData.days[d]);
+  const total   = vals.reduce((a,b)=>a+b,0);
+  const avg     = vals.length ? total/vals.length : 0;
+
+  CHART_INSTANCES[canvas.id] = new Chart(canvas.getContext('2d'), {
+    type: 'line',
+    data: {
+      labels: dayNums,
+      datasets: [
+        { label: DIV_NAME_MAP[divUUID]||divUUID, data: vals, borderColor: col, backgroundColor: hexToRgba(col,0.09), borderWidth:2.5, pointRadius:4, pointHoverRadius:6, pointBackgroundColor:col, tension:0.38, fill:true },
+        { label:`Avg (${fmtKWD(avg)})`, data: dayNums.map(()=>avg), borderColor:'#94a3b8', borderDash:[5,4], borderWidth:1.5, pointRadius:0, tension:0, fill:false }
+      ]
+    },
+    options: chartOptions()
+  });
+}
+
+function buildComparisonChart(canvas, grouped, monthKeys) {
+  const labels = Array.from({length:31},(_,i)=>i+1);
+  const datasets = monthKeys.map(key => {
+    const m   = grouped[key];
+    const col = PALETTE[m.month];
+    return {
+      label: `${MONTHS[m.month]} ${m.year}`,
+      data: labels.map(d => m.days[d] || null),
+      borderColor: col, backgroundColor: hexToRgba(col,0.04),
+      borderWidth: 2, pointRadius: 3, pointHoverRadius: 5,
+      tension: 0.35, fill: false, spanGaps: false,
+    };
+  });
+  CHART_INSTANCES[canvas.id] = new Chart(canvas.getContext('2d'), { type:'line', data:{labels,datasets}, options:chartOptions() });
+}
+
+function chartOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: { mode:'index', intersect:false },
+    plugins: {
+      legend: { position:'top', labels:{ font:{size:11}, boxWidth:12 } },
+      tooltip: { callbacks: { label: ctx => ctx.raw!=null ? ` ${ctx.dataset.label}: ${fmtKWD(ctx.raw)}` : ` ${ctx.dataset.label}: No data` } }
+    },
+    scales: {
+      x: { title:{ display:true, text:'Day of Month', font:{size:11} }, grid:{ color:'#f1f5f9' } },
+      y: { title:{ display:true, text:'Sales (KWD)', font:{size:11} }, grid:{ color:'#f1f5f9' }, ticks:{ callback: v => fmtShort(v) } }
+    }
+  };
+}
+</script>
+</body>
+</html>
